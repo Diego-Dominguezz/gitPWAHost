@@ -13,6 +13,9 @@
 <body>
   <div class="container">
     <h1>Bienvenido al sitio animado</h1>
+    <div id="install-container" class="install-container" style="display: none;">
+      <button id="install-btn" class="install-btn">📱 Instalar PWA</button>
+    </div>
     <div class="image-container">
       <img id="dynamic-image" src="" alt="Dynamic Image">
     </div>
@@ -23,10 +26,71 @@
   </div>
   <script src="script.js"></script>
   <script>
+    let deferredPrompt;
+    
+    // Handle PWA installation prompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+      console.log('PWA installation prompt available');
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      // Show install button
+      const installContainer = document.getElementById('install-container');
+      const installBtn = document.getElementById('install-btn');
+      
+      if (installContainer && installBtn) {
+        installContainer.style.display = 'block';
+        
+        installBtn.addEventListener('click', async () => {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log('User choice:', outcome);
+            if (outcome === 'accepted') {
+              installContainer.style.display = 'none';
+            }
+            deferredPrompt = null;
+          }
+        });
+      }
+    });
+
+    // Handle successful installation
+    window.addEventListener('appinstalled', (evt) => {
+      console.log('PWA installed successfully');
+      const installContainer = document.getElementById('install-container');
+      if (installContainer) {
+        installContainer.style.display = 'none';
+      }
+    });
+
+    // Service Worker registration with update handling
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("service-worker.js")
-        .then(() => console.log("Service Worker registrado."))
+        .then(registration => {
+          console.log("Service Worker registrado.", registration);
+          
+          // Handle service worker updates
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            console.log('New service worker found, installing...');
+            
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('New service worker installed, refreshing page...');
+                // Automatically reload when new SW is ready
+                window.location.reload();
+              }
+            });
+          });
+        })
         .catch(err => console.error("Error registrando SW:", err));
+        
+      // Listen for service worker controller changes
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        console.log('Service worker controller changed, reloading page...');
+        window.location.reload();
+      });
     }
   </script>
 </body>
