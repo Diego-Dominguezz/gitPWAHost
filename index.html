@@ -24,12 +24,40 @@
   <script src="script.js"></script>
   <script>
     if ("serviceWorker" in navigator) {
-      // Register with an explicit scope at the site root to cover all files.
-      navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
-        .then(reg => {
-          console.log('Service Worker registrado. Scope:', reg.scope);
-        })
-        .catch(err => console.error('Error registrando SW:', err));
+      // Probe likely locations for the service worker script so we avoid a 404 when the site
+      // is hosted under a subpath (GitHub Pages project site) or at the domain root.
+      (async () => {
+        const candidates = [
+          './service-worker.js', // same folder as index.html
+          '/service-worker.js',  // domain root
+          'service-worker.js'    // relative without ./ (fallback)
+        ];
+
+        for (const candidate of candidates) {
+          const full = new URL(candidate, location.href).href;
+          try {
+            console.log('Checking Service Worker candidate:', full);
+            const res = await fetch(full, { method: 'HEAD' });
+            if (!res.ok) {
+              console.warn('Not available (status ' + res.status + '):', full);
+              continue;
+            }
+
+            // Found a reachable script URL — register it using the same candidate string
+            try {
+              const reg = await navigator.serviceWorker.register(candidate);
+              console.log('Service Worker registrado. Scope:', reg.scope, 'ScriptURL:', reg.active?.scriptURL || full);
+            } catch (regErr) {
+              console.error('Error registrando SW from', full, regErr);
+            }
+            return;
+          } catch (err) {
+            console.warn('Failed to fetch candidate', full, err);
+          }
+        }
+
+        console.error('No reachable service-worker.js found at tried locations. Ensure the file is deployed alongside index.html.');
+      })();
     } else {
       console.warn('Service Workers not supported in this browser');
     }
